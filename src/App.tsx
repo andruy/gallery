@@ -18,23 +18,39 @@ function isMedia(href: string) {
   return isImage(href) || isVideo(href)
 }
 
+function isFolder(href: string) {
+  return href.endsWith("/") && href !== "../" && !href.startsWith("/") && !href.startsWith("http")
+}
+
 export default function App() {
+  const [currentPath, setCurrentPath] = useState("/Home/")
+  const [folders, setFolders] = useState<string[]>([])
   const [media, setMedia] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch("/photos/")
+    setError(null)
+    fetch(currentPath)
       .then(res => res.text())
       .then(html => {
         const doc = new DOMParser().parseFromString(html, "text/html")
-        const links = Array.from(doc.querySelectorAll("a"))
+        const hrefs = Array.from(doc.querySelectorAll("a"))
           .map(a => a.getAttribute("href"))
-          .filter((href): href is string => !!href && isMedia(href))
-          .map(href => `/photos/${href}`)
-        setMedia(links)
+          .filter((href): href is string => !!href)
+
+        setFolders(
+          hrefs
+            .filter(isFolder)
+            .map(href => currentPath + href)
+        )
+        setMedia(
+          hrefs
+            .filter(isMedia)
+            .map(href => currentPath + href)
+        )
       })
       .catch(() => setError("Failed to load media"))
-  }, [])
+  }, [currentPath])
 
   if (error) {
     return (
@@ -44,6 +60,8 @@ export default function App() {
     )
   }
 
+  const pathSegments = currentPath.replace(/\/$/, "").split("/").filter(Boolean)
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <header className="px-6 py-10 text-center">
@@ -51,8 +69,48 @@ export default function App() {
         <p className="mt-3 text-neutral-400">Click any item to view it at full resolution</p>
       </header>
 
+      <nav className="px-6 pb-4 flex items-center gap-1 text-sm text-neutral-400">
+        {pathSegments.map((segment, i) => {
+          const segmentPath = "/" + pathSegments.slice(0, i + 1).join("/") + "/"
+          const isLast = i === pathSegments.length - 1
+          return (
+            <span key={segmentPath} className="flex items-center gap-1">
+              {i > 0 && <span className="text-neutral-600">/</span>}
+              {isLast ? (
+                <span className="text-neutral-100">{segment}</span>
+              ) : (
+                <button
+                  onClick={() => setCurrentPath(segmentPath)}
+                  className="hover:text-neutral-100 transition-colors cursor-pointer"
+                >
+                  {segment}
+                </button>
+              )}
+            </span>
+          )
+        })}
+      </nav>
+
       <main className="px-6 pb-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {folders.map(folder => {
+            const name = folder.replace(/\/$/, "").split("/").pop()
+            return (
+              <button
+                key={folder}
+                onClick={() => setCurrentPath(folder)}
+                className="group relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 aspect-square flex flex-col items-center justify-center gap-3 transition-colors hover:border-neutral-600 cursor-pointer"
+              >
+                <svg className="w-16 h-16 text-neutral-500 group-hover:text-neutral-300 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                </svg>
+                <span className="text-sm text-neutral-300 group-hover:text-neutral-100 transition-colors truncate max-w-[80%]">
+                  {name}
+                </span>
+              </button>
+            )
+          })}
+
           {media.map(src => (
             <a
               key={src}
@@ -90,9 +148,9 @@ export default function App() {
           ))}
         </div>
 
-        {media.length === 0 && (
+        {folders.length === 0 && media.length === 0 && (
           <div className="mt-20 text-center text-neutral-500">
-            No media found on server
+            No media or folders found
           </div>
         )}
       </main>
