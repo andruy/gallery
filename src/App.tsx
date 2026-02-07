@@ -22,6 +22,50 @@ function isFolder(href: string) {
   return href.endsWith("/") && href !== "../" && !href.startsWith("/") && !href.startsWith("http")
 }
 
+function MediaThumbnail({ src }: { src: string }) {
+  const [loaded, setLoaded] = useState(false)
+
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900"
+    >
+      {!loaded && (
+        <div className="absolute inset-0 bg-neutral-800 animate-pulse" />
+      )}
+      {isVideo(src) ? (
+        <video
+          src={src}
+          muted
+          preload="metadata"
+          onLoadedData={() => setLoaded(true)}
+          className={`aspect-square w-full object-cover transition-all duration-300 group-hover:scale-105 ${loaded ? "opacity-100" : "opacity-0"}`}
+        />
+      ) : (
+        <img
+          src={src}
+          alt={src}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          className={`aspect-square w-full object-cover transition-all duration-300 group-hover:scale-105 ${loaded ? "opacity-100" : "opacity-0"}`}
+        />
+      )}
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition" />
+      {isVideo(src) && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.8A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.31l9.9-5.89a1.5 1.5 0 000-2.62L6.3 2.8z" />
+            </svg>
+          </div>
+        </div>
+      )}
+    </a>
+  )
+}
+
 export default function App() {
   const [currentPath, setCurrentPath] = useState("/Home/")
   const [folders, setFolders] = useState<string[]>([])
@@ -112,39 +156,7 @@ export default function App() {
           })}
 
           {media.map(src => (
-            <a
-              key={src}
-              href={src}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900"
-            >
-              {isVideo(src) ? (
-                <video
-                  src={src}
-                  muted
-                  preload="metadata"
-                  className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              ) : (
-                <img
-                  src={src}
-                  alt={src}
-                  loading="lazy"
-                  className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              )}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition" />
-              {isVideo(src) && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-12 h-12 rounded-full bg-black/60 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M6.3 2.8A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.31l9.9-5.89a1.5 1.5 0 000-2.62L6.3 2.8z" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-            </a>
+            <MediaThumbnail key={src} src={src} />
           ))}
         </div>
 
