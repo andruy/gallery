@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/chai2010/webp"
+	"github.com/rwcarlsen/goexif/exif"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
@@ -292,10 +293,25 @@ func generateImageThumb(srcPath, thumbPath string) error {
 	}
 	defer f.Close()
 
+	// Read EXIF orientation before decoding (only JPEGs have EXIF).
+	orientation := 1
+	if ext := strings.ToLower(filepath.Ext(srcPath)); ext == ".jpg" || ext == ".jpeg" {
+		if x, err := exif.Decode(f); err == nil {
+			if tag, err := x.Get(exif.Orientation); err == nil {
+				if v, err := tag.Int(0); err == nil {
+					orientation = v
+				}
+			}
+		}
+		f.Seek(0, 0)
+	}
+
 	src, _, err := image.Decode(f)
 	if err != nil {
 		return fmt.Errorf("decode image: %w", err)
 	}
+
+	src = applyOrientation(src, orientation)
 
 	bounds := src.Bounds()
 	srcW := bounds.Dx()
@@ -325,6 +341,75 @@ func generateImageThumb(srcPath, thumbPath string) error {
 	}
 	log.Printf("generated thumb: %s", thumbPath)
 	return nil
+}
+
+// applyOrientation transforms an image according to its EXIF orientation tag.
+func applyOrientation(img image.Image, orientation int) image.Image {
+	if orientation <= 1 || orientation > 8 {
+		return img
+	}
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+
+	switch orientation {
+	case 2: // flip horizontal
+		dst := image.NewRGBA(image.Rect(0, 0, w, h))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(w-1-x, y, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	case 3: // rotate 180
+		dst := image.NewRGBA(image.Rect(0, 0, w, h))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(w-1-x, h-1-y, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	case 4: // flip vertical
+		dst := image.NewRGBA(image.Rect(0, 0, w, h))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(x, h-1-y, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	case 5: // transpose (flip horizontal + rotate 270 CW)
+		dst := image.NewRGBA(image.Rect(0, 0, h, w))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(y, x, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	case 6: // rotate 90 CW
+		dst := image.NewRGBA(image.Rect(0, 0, h, w))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(h-1-y, x, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	case 7: // transverse (flip horizontal + rotate 90 CW)
+		dst := image.NewRGBA(image.Rect(0, 0, h, w))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(h-1-y, w-1-x, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	case 8: // rotate 270 CW (90 CCW)
+		dst := image.NewRGBA(image.Rect(0, 0, h, w))
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				dst.Set(y, w-1-x, img.At(bounds.Min.X+x, bounds.Min.Y+y))
+			}
+		}
+		return dst
+	}
+	return img
 }
 
 func generateVideoThumb(srcPath, thumbPath string) error {
